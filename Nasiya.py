@@ -1,7 +1,10 @@
 import asyncio
 import logging
+import os
 from datetime import datetime
+from threading import Thread
 from dateutil.relativedelta import relativedelta
+from flask import Flask
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command, CommandStart
@@ -17,6 +20,24 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
 )
+
+# ----------------------------------------------------
+# 0. RENDER UCHUN FLASK PORT SERVER
+# ----------------------------------------------------
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is running 24/7!"
+
+def run():
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.daemon = True
+    t.start()
 
 # ----------------------------------------------------
 # CONFIGURATION
@@ -451,7 +472,6 @@ async def back_from_address(message: Message, state: FSMContext):
     )
     await state.set_state(NasiyaOrder.waiting_for_passport)
 
-# 🟢 MANZIL OLINGANDAN SO'NG TELEFON RAQAM SO'RASH
 @router.message(NasiyaOrder.waiting_for_address, F.text)
 async def process_address(message: Message, state: FSMContext):
     address = message.text.strip()
@@ -476,7 +496,6 @@ async def back_from_phone(message: Message, state: FSMContext):
     )
     await state.set_state(NasiyaOrder.waiting_for_address)
 
-# 🟢 TELEFON RAQAM QABUL QILISH VA YAKUNIY TASDIQLASH
 @router.message(NasiyaOrder.waiting_for_phone, F.text)
 async def process_phone(message: Message, state: FSMContext):
     phone_number = message.text.strip()
@@ -514,7 +533,6 @@ async def cancel_order(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("❌ Ariza bekor qilindi.", reply_markup=get_main_menu())
     await callback.answer()
 
-# ARIZANI ADMINLARGA YUBORISH
 @router.callback_query(NasiyaOrder.final_confirm, F.data == "send_to_admin")
 async def send_order_to_admin(callback: CallbackQuery, state: FSMContext):
     user_data = await state.get_data()
@@ -653,4 +671,5 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
+    keep_alive()  # Render uchun portni fonda ochadi
     asyncio.run(main())
