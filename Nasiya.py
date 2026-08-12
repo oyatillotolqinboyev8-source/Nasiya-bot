@@ -18,11 +18,10 @@ from aiogram.types import (
     KeyboardButton,
     Message,
     ReplyKeyboardMarkup,
-    ReplyKeyboardRemove,
 )
 
 # ----------------------------------------------------
-# 0. RENDER UCHUN FLASK PORT SERVER
+# 0. RENDER FLASK SERVER
 # ----------------------------------------------------
 app = Flask('')
 
@@ -43,49 +42,133 @@ def keep_alive():
 # CONFIGURATION
 # ----------------------------------------------------
 BOT_TOKEN = "8944862071:AAFcxHz0fIAMO3r6GLSXql7xrn_jzFk_Puc"
-
-# IKKITA ADMIN ID-SI
-ADMIN_ID = [7214612272, 607901580]  
+ADMIN_ID = [7214612272, 607901580]  # Ikkita admin ID
+USD_RATE = 13000                    # Doimiy kurs: 1 USD = 13,000 UZS
 
 logging.basicConfig(level=logging.INFO)
 router = Router()
 
-# Vaqtinchalik ma'lumotlar bazasi
 users_db = set()
 orders_db = []
 
 # ----------------------------------------------------
-# 1. FSM STATES (Bosqichlar)
+# KOP TILLILIK (MULTILANGUAGE TEXTS)
 # ----------------------------------------------------
-class NasiyaOrder(StatesGroup):
-    waiting_for_price = State()          # Narx kiritish
-    waiting_for_down_payment_choice = State() # Oldindan to'lov bormi/yo'qmi
-    waiting_for_down_payment_amount = State() # Oldindan to'lov summasi
-    waiting_for_duration = State()       # Muddat tanlash
-    confirm_order = State()              # To'lov grafigini tasdiqlash
-    waiting_for_passport = State()       # Pasport rasm/PDF
-    waiting_for_address = State()        # Yashash manzili
-    waiting_for_phone = State()          # Telefon raqami (Matn ko'rinishida)
-    final_confirm = State()              # Oxirgi qayta tasdiqlash
-
-class AdminBroadcast(StatesGroup):
-    waiting_for_message = State()        # Adminga xabar tarqatish holati
-
-# ----------------------------------------------------
-# 2. KALKULYATOR MANTIQLARI (6 oy: 30%, 12 oy: 45%)
-# ----------------------------------------------------
-RATES = {
-    6: 0.30,   # 6 oyga 30%
-    12: 0.45   # 12 oyga 45%
+TEXTS = {
+    'uz': {
+        'welcome': "👋 <b>Xush kelibsiz!</b>\n\nNasiya xizmatimizdan foydalanish uchun kerakli bo'limni tanlang 👇",
+        'btn_nasiya': "📝 Nasiya rasmiylashtirish",
+        'btn_about': "ℹ️ Bot haqida",
+        'btn_lang': "🌐 Tilni o'zgartirish",
+        'select_currency': "💱 <b>Valyutani tanlang:</b>\n<i>(Belgilangan kurs: 1 USD = 13,000 UZS)</i>",
+        'enter_price': "💰 Mahsulot narxini <b>{symbol}</b>da kiriting:\n<i>(Masalan: {example})</i>",
+        'enter_dp': "💵 Boshlang'ich to'lov summasini <b>{symbol}</b>da kiriting:",
+        'dp_choice': "💵 Mahsulot narxi: <b>{price:,.0f} {symbol}</b>\n\nBoshlang'ich to'lov qilasizmi?",
+        'select_duration': "Nasiya muddatini tanlang:",
+        'passport_req': "📄 <b>Pasport yoki ID karta</b>\n\nIltimos, pasportingiz rasmini yoki PDF faylini yuboring:",
+        'address_req': "📍 <b>Yashash manzilingizni kiriting:</b>\n<i>Namuna: Qo'qon shahar, Navoiy ko'chasi 15-uy</i>",
+        'phone_req': "📞 <b>Telefon raqamingizni kiriting:</b>\n<i>Namuna: +998901234567</i>",
+        'back': "⬅️ Orqaga",
+        'cancel': "❌ Bekor qilish",
+        'btn_dp_no': "🚫 Boshlang'ich to'lovsiz",
+        'btn_dp_yes': "💵 Boshlang'ich to'lov bilan",
+        'btn_continue': "✅ Davom etish",
+        'btn_submit': "🚀 Arizani Yuborish",
+        'about_text': "✨ <b>NASIYA BOT</b> ✨\n\n💱 Kurs: 1 USD = 13,000 UZS\n⏱️ Muddatlar: 6 oy (30%) va 12 oy (45%)",
+        'cancelled': "❌ Bekor qilindi.",
+        'success_sent': "🎉 <b>Arizangiz muvaffaqiyatli yuborildi!</b>\nTez orada adminlarimiz bog'lanishadi."
+    },
+    'en': {
+        'welcome': "👋 <b>Welcome!</b>\n\nPlease select a section to use our installment service 👇",
+        'btn_nasiya': "📝 New Installment Request",
+        'btn_about': "ℹ️ About Bot",
+        'btn_lang': "🌐 Change Language",
+        'select_currency': "💱 <b>Select currency:</b>\n<i>(Fixed rate: 1 USD = 13,000 UZS)</i>",
+        'enter_price': "💰 Enter the product price in <b>{symbol}</b>:\n<i>(Example: {example})</i>",
+        'enter_dp': "💵 Enter the down payment amount in <b>{symbol}</b>:",
+        'dp_choice': "💵 Product price: <b>{price:,.0f} {symbol}</b>\n\nWould you like to make a down payment?",
+        'select_duration': "Select installment duration:",
+        'passport_req': "📄 <b>Passport or ID card</b>\n\nPlease send a photo or PDF file of your passport:",
+        'address_req': "📍 <b>Enter your home address:</b>\n<i>Example: Tashkent city, Amir Timur street 10</i>",
+        'phone_req': "📞 <b>Enter your phone number:</b>\n<i>Example: +998901234567</i>",
+        'back': "⬅️ Back",
+        'cancel': "❌ Cancel",
+        'btn_dp_no': "🚫 No down payment",
+        'btn_dp_yes': "💵 With down payment",
+        'btn_continue': "✅ Continue",
+        'btn_submit': "🚀 Submit Application",
+        'about_text': "✨ <b>INSTALLMENT BOT</b> ✨\n\n💱 Rate: 1 USD = 13,000 UZS\n⏱️ Terms: 6 months (30%) & 12 months (45%)",
+        'cancelled': "❌ Cancelled.",
+        'success_sent': "🎉 <b>Application submitted successfully!</b>\nOur managers will contact you soon."
+    },
+    'ru': {
+        'welcome': "👋 <b>Добро пожаловать!</b>\n\nВыберите нужный раздел для оформления рассрочки 👇",
+        'btn_nasiya': "📝 Оформить рассрочку",
+        'btn_about': "ℹ️ О боте",
+        'btn_lang': "🌐 Изменить язык",
+        'select_currency': "💱 <b>Выберите валюту:</b>\n<i>(Фиксированный курс: 1 USD = 13,000 UZS)</i>",
+        'enter_price': "💰 Введите стоимость товара в <b>{symbol}</b>:\n<i>(Например: {example})</i>",
+        'enter_dp': "💵 Введите сумму первоначального взноса в <b>{symbol}</b>:",
+        'dp_choice': "💵 Стоимость товара: <b>{price:,.0f} {symbol}</b>\n\nБудете делать первоначальный взнос?",
+        'select_duration': "Выберите срок рассрочки:",
+        'passport_req': "📄 <b>Паспорт или ID карта</b>\n\nПожалуйста, отправьте фото или PDF вашего паспорта:",
+        'address_req': "📍 <b>Введите ваш адрес проживания:</b>\n<i>Пример: г. Ташкент, ул. Навои 15</i>",
+        'phone_req': "📞 <b>Введите ваш номер телефона:</b>\n<i>Пример: +998901234567</i>",
+        'back': "⬅️ Назад",
+        'cancel': "❌ Отмена",
+        'btn_dp_no': "🚫 Без первоначального взноса",
+        'btn_dp_yes': "💵 С первоначальным взносом",
+        'btn_continue': "✅ Продолжить",
+        'btn_submit': "🚀 Отправить заявку",
+        'about_text': "✨ <b>РАССРОЧКА БОТ</b> ✨\n\n💱 Курс: 1 USD = 13,000 UZS\n⏱️ Сроки: 6 месяцев (30%) и 12 месяцев (45%)",
+        'cancelled': "❌ Отменено.",
+        'success_sent': "🎉 <b>Заявка успешно отправлена!</b>\nСкоро с вами свяжутся администраторы."
+    }
 }
 
-def calculate_nasiya(total_price: float, down_payment: float, months: int):
-    remaining_amount = total_price - down_payment
-    margin_rate = RATES[months]
-    
-    total_financed = remaining_amount * (1 + margin_rate)
-    monthly_payment = total_financed / months
-    
+# ----------------------------------------------------
+# 1. FSM STATES
+# ----------------------------------------------------
+class NasiyaOrder(StatesGroup):
+    waiting_for_lang = State()
+    waiting_for_currency = State()
+    waiting_for_price = State()
+    waiting_for_down_payment_choice = State()
+    waiting_for_down_payment_amount = State()
+    waiting_for_duration = State()
+    confirm_order = State()
+    waiting_for_passport = State()
+    waiting_for_address = State()
+    waiting_for_phone = State()
+    final_confirm = State()
+
+class AdminBroadcast(StatesGroup):
+    waiting_for_message = State()
+
+# ----------------------------------------------------
+# 2. CALCULATOR LOGIC
+# ----------------------------------------------------
+RATES = {6: 0.30, 12: 0.45}
+
+def calculate_nasiya(total_price: float, down_payment: float, months: int, currency_type: str):
+    remaining = total_price - down_payment
+    margin = RATES[months]
+    total_financed = remaining * (1 + margin)
+    monthly = total_financed / months
+
+    if currency_type == "usd":
+        p_usd, p_uzs = total_price, total_price * USD_RATE
+        dp_usd, dp_uzs = down_payment, down_payment * USD_RATE
+        rem_usd, rem_uzs = remaining, remaining * USD_RATE
+        m_usd, m_uzs = monthly, monthly * USD_RATE
+        symbol = "$"
+    else:
+        p_uzs, p_usd = total_price, total_price / USD_RATE
+        dp_uzs, dp_usd = down_payment, down_payment / USD_RATE
+        rem_uzs, rem_usd = remaining, remaining / USD_RATE
+        m_uzs, m_usd = monthly, monthly / USD_RATE
+        symbol = "so'm" if currency_type == "uzs" else "UZS"
+
     today = datetime.now()
     schedule = []
     for i in range(1, months + 1):
@@ -93,111 +176,115 @@ def calculate_nasiya(total_price: float, down_payment: float, months: int):
         schedule.append({
             "month": i,
             "date": due_date.strftime("%d.%m.%Y"),
-            "amount": round(monthly_payment)
+            "amount": round(m_usd if currency_type == "usd" else m_uzs)
         })
-        
+
     return {
         "original_price": total_price,
         "down_payment": down_payment,
-        "remaining_amount": remaining_amount,
         "months": months,
-        "margin_percent": int(margin_rate * 100),
-        "total_amount": round(total_financed + down_payment),
-        "monthly_payment": round(monthly_payment),
-        "schedule": schedule
+        "margin_percent": int(margin * 100),
+        "monthly_payment": round(monthly),
+        "schedule": schedule,
+        "currency_type": currency_type,
+        "currency_symbol": symbol,
+        "price_usd": round(p_usd, 2),
+        "price_uzs": round(p_uzs),
+        "dp_usd": round(dp_usd, 2),
+        "dp_uzs": round(dp_uzs),
+        "rem_usd": round(rem_usd, 2),
+        "rem_uzs": round(rem_uzs),
+        "monthly_usd": round(m_usd, 2),
+        "monthly_uzs": round(m_uzs)
     }
 
 # ----------------------------------------------------
-# 3. TUGMALAR (Keyboards)
+# 3. KEYBOARDS
 # ----------------------------------------------------
-def get_main_menu():
+def get_lang_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🇺🇿 O'zbekcha", callback_data="lang_uz"),
+            InlineKeyboardButton(text="🇬🇧 English", callback_data="lang_en"),
+            InlineKeyboardButton(text="🇷🇺 Русский", callback_data="lang_ru")
+        ]
+    ])
+
+def get_main_menu(lang='uz'):
+    t = TEXTS[lang]
     return ReplyKeyboardMarkup(
         keyboard=[
-            [
-                KeyboardButton(text="📝 Nasiya rasmiylashtirish"),
-                KeyboardButton(text="ℹ️ Bot haqida")
-            ]
+            [KeyboardButton(text=t['btn_nasiya'])],
+            [KeyboardButton(text=t['btn_about']), KeyboardButton(text=t['btn_lang'])]
         ],
         resize_keyboard=True
     )
 
-def get_back_reply_keyboard():
+def get_back_keyboard(lang='uz'):
     return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="⬅️ Orqaga")]
-        ],
+        keyboard=[[KeyboardButton(text=TEXTS[lang]['back'])]],
         resize_keyboard=True
     )
 
-def get_down_payment_keyboard():
+def get_currency_keyboard(lang='uz'):
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🚫 Boshlang'ich to'lovsiz", callback_data="dp_no")
+            InlineKeyboardButton(text="🇺🇿 So'm (UZS)", callback_data="curr_uzs"),
+            InlineKeyboardButton(text="🇺🇸 Dollar ($)", callback_data="curr_usd")
+        ],
+        [InlineKeyboardButton(text=TEXTS[lang]['cancel'], callback_data="confirm_no")]
+    ])
+
+def get_dp_keyboard(lang='uz'):
+    t = TEXTS[lang]
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t['btn_dp_no'], callback_data="dp_no")],
+        [InlineKeyboardButton(text=t['btn_dp_yes'], callback_data="dp_yes")],
+        [InlineKeyboardButton(text=t['cancel'], callback_data="confirm_no")]
+    ])
+
+def get_duration_keyboard(lang='uz'):
+    t = TEXTS[lang]
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="6 oy (30%)", callback_data="duration_6"),
+            InlineKeyboardButton(text="12 oy (45%)", callback_data="duration_12")
         ],
         [
-            InlineKeyboardButton(text="💵 Boshlang'ich to'lov bilan", callback_data="dp_yes")
-        ],
-        [
-            InlineKeyboardButton(text="❌ Bekor qilish", callback_data="confirm_no")
+            InlineKeyboardButton(text=t['back'], callback_data="back_to_dp_choice"),
+            InlineKeyboardButton(text=t['cancel'], callback_data="confirm_no")
         ]
     ])
 
-def get_duration_keyboard():
+def get_confirm_keyboard(lang='uz'):
+    t = TEXTS[lang]
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="6 oy", callback_data="duration_6"),
-            InlineKeyboardButton(text="12 oy", callback_data="duration_12"),
+            InlineKeyboardButton(text=t['btn_continue'], callback_data="confirm_yes"),
+            InlineKeyboardButton(text=t['back'], callback_data="back_to_duration")
         ],
-        [
-            InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_to_dp_choice"),
-            InlineKeyboardButton(text="❌ Bekor qilish", callback_data="confirm_no")
-        ]
+        [InlineKeyboardButton(text=t['cancel'], callback_data="confirm_no")]
     ])
 
-def get_confirm_keyboard():
+def get_final_submit_keyboard(lang='uz'):
+    t = TEXTS[lang]
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="✅ Davom etish", callback_data="confirm_yes"),
-            InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_to_duration"),
-        ],
-        [
-            InlineKeyboardButton(text="❌ Bekor qilish", callback_data="confirm_no")
-        ]
-    ])
-
-def get_final_submit_keyboard():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="🚀 Arizani Adminga Yuborish", callback_data="send_to_admin"),
-        ],
-        [
-            InlineKeyboardButton(text="❌ Bekor qilish", callback_data="confirm_no"),
-        ]
+        [InlineKeyboardButton(text=t['btn_submit'], callback_data="send_to_admin")],
+        [InlineKeyboardButton(text=t['cancel'], callback_data="confirm_no")]
     ])
 
 def get_admin_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [
-                KeyboardButton(text="📊 Tizim statistikasi"),
-                KeyboardButton(text="📋 Arizalar ro'yxati")
-            ],
-            [
-                KeyboardButton(text="📨 Xabarnoma yuborish"),
-                KeyboardButton(text="➕ Majburiy kanallar")
-            ],
-            [
-                KeyboardButton(text="📈 Foiz stavkalari")
-            ],
-            [
-                KeyboardButton(text="⬅️ Bosh menyu")
-            ]
+            [KeyboardButton(text="📊 Tizim statistikasi"), KeyboardButton(text="📋 Arizalar ro'yxati")],
+            [KeyboardButton(text="📨 Xabarnoma yuborish"), KeyboardButton(text="📈 Foiz va Kurs")],
+            [KeyboardButton(text="⬅️ Bosh menyu")]
         ],
         resize_keyboard=True
     )
 
 # ----------------------------------------------------
-# 4. USER HANDLERLARI
+# 4. HANDLERS
 # ----------------------------------------------------
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
@@ -205,83 +292,96 @@ async def cmd_start(message: Message, state: FSMContext):
     users_db.add(message.from_user.id)
     
     await message.answer(
-        "👋 <b>Xush kelibsiz!</b>\n\n"
-        "Ushbu bot orqali siz do'kondan sotib olmoqchi bo'lgan buyumingizni "
-        "6 oy yoki 12 oy muddatga nasiyaga rasmiylashtirishingiz mumkin.\n\n"
-        "Kerakli bo'limni tanlang 👇",
-        reply_markup=get_main_menu(),
+        "🌐 <b>Tilni tanlang / Select language / Выберите язык:</b>",
+        reply_markup=get_lang_keyboard(),
         parse_mode="HTML"
     )
+    await state.set_state(NasiyaOrder.waiting_for_lang)
 
-@router.message(Command("help"))
-async def cmd_help(message: Message):
-    help_text = (
-        "❓ <b>YORDAM VA BOT HAQIDA</b>\n\n"
-        "• /start — Botni qayta ishga tushirish\n"
-        "• /cancel — Har qanday amaliyotni bekor qilib, boshiga qaytish\n\n"
-        "📩 Qo'shimcha savollar bo'lsa, ma'muriyat bilan bog'laning."
+@router.callback_query(NasiyaOrder.waiting_for_lang, F.data.startswith("lang_"))
+async def process_lang(callback: CallbackQuery, state: FSMContext):
+    lang = callback.data.split("_")[1]
+    await state.update_data(lang=lang)
+    
+    await callback.message.delete()
+    await callback.message.answer(
+        TEXTS[lang]['welcome'],
+        reply_markup=get_main_menu(lang),
+        parse_mode="HTML"
     )
-    await message.answer(help_text, parse_mode="HTML")
+    await callback.answer()
 
-@router.message(Command("cancel"))
-async def cmd_cancel(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer("❌ Barcha amallaringiz bekor qilindi.", reply_markup=get_main_menu())
-
-@router.message(F.text == "ℹ️ Bot haqida")
-async def about_bot(message: Message):
-    about_text = (
-        "✨ <b>NASIYA BOT — ORZULARINGIZNI BUGUN RO'YOBGA CHIQARING!</b> ✨\n\n"
-        "🛍️ <b>Bu bot nima qilib beradi?</b>\n"
-        "Siz istalgan do'kondan o'zingizga yoqqan buyumni (gilam, mebel, maishiy texnika va h.k.) tanlaysiz, "
-        "lekin pulingiz yetmayptimi? <b>Xavotir olmang!</b> Biz uni siz uchun sotib olamiz, siz esa bo'lib-bo'lib to'laysiz! 😉\n\n"
-        "⚡️ <b>BIZNING AFZALLIKLARIMIZ:</b>\n"
-        "└ ⏱️ <b>Tezkor:</b> 5 daqiqada hisob-kitob\n"
-        "└ 📑 <b>Ortiqcha hujjatlarsiz:</b> Faqat pasport kifoya\n"
-        "└ 📅 <b>Qulay muddat:</b> 6 yoki 12 oy\n"
-        "└ 💸 <b>Hamyonbop:</b> Halol va aniq hisob-kitob\n\n"
-        "🚀 <b>Qanday ishlaydi?</b>\n"
-        "1️⃣ <b>📝 Nasiya rasmiylashtirish</b> tugmasini bosing\n"
-        "2️⃣ Narxni kiriting va o'zingizga qulay muddatni tanlang\n"
-        "3️⃣ Tayyor to'lov grafigi bilan tanishib, arizani yuboring!\n\n"
-        "🤝 <i>Halollik va qulaylik — bizning bosh mezonimiz!</i>\n\n"
-    )
-    await message.answer(about_text, parse_mode="HTML")
-
-@router.message(F.text == "📝 Nasiya rasmiylashtirish")
-async def start_nasiya(message: Message, state: FSMContext):
+@router.message(F.text.in_({"🌐 Tilni o'zgartirish", "🌐 Change Language", "🌐 Изменить язык"}))
+async def change_lang(message: Message, state: FSMContext):
     await message.answer(
-        "💰 Sotib olmoqchi bo'lgan mahsulotingiz narxini so'mda kiriting:\n"
-        "<i>(Masalan: 5000000)</i>",
-        reply_markup=get_back_reply_keyboard(),
+        "🌐 <b>Tilni tanlang / Select language / Выберите язык:</b>",
+        reply_markup=get_lang_keyboard(),
+        parse_mode="HTML"
+    )
+    await state.set_state(NasiyaOrder.waiting_for_lang)
+
+@router.message(F.text.in_({"ℹ️ Bot haqida", "ℹ️ About Bot", "ℹ️ О боте"}))
+async def about_bot(message: Message, state: FSMContext):
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
+    await message.answer(TEXTS[lang]['about_text'], parse_mode="HTML")
+
+# --- NASIYA RASMIYLASHTIRISH BOSHLANISHI ---
+@router.message(F.text.in_({"📝 Nasiya rasmiylashtirish", "📝 New Installment Request", "📝 Оформить рассрочку"}))
+async def start_nasiya(message: Message, state: FSMContext):
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
+
+    await message.answer(
+        TEXTS[lang]['select_currency'],
+        reply_markup=get_currency_keyboard(lang),
+        parse_mode="HTML"
+    )
+    await state.set_state(NasiyaOrder.waiting_for_currency)
+
+@router.callback_query(NasiyaOrder.waiting_for_currency, F.data.startswith("curr_"))
+async def process_currency(callback: CallbackQuery, state: FSMContext):
+    curr = callback.data.split("_")[1]
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
+
+    symbol = "$" if curr == "usd" else "so'm"
+    example = "500" if curr == "usd" else "6,500,000"
+
+    await state.update_data(currency_type=curr, currency_symbol=symbol)
+
+    await callback.message.delete()
+    await callback.message.answer(
+        TEXTS[lang]['enter_price'].format(symbol=symbol, example=example),
+        reply_markup=get_back_keyboard(lang),
         parse_mode="HTML"
     )
     await state.set_state(NasiyaOrder.waiting_for_price)
+    await callback.answer()
 
-@router.message(NasiyaOrder.waiting_for_price, F.text == "⬅️ Orqaga")
+@router.message(NasiyaOrder.waiting_for_price, F.text.in_({"⬅️ Orqaga", "⬅️ Back", "⬅️ Назад"}))
 async def back_from_price(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer("Asosiy menyuga qaytdingiz:", reply_markup=get_main_menu())
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
+    await message.answer("Menu", reply_markup=get_main_menu(lang))
 
 @router.message(NasiyaOrder.waiting_for_price, F.text)
 async def process_price(message: Message, state: FSMContext):
     clean_text = message.text.replace(" ", "").replace(",", "")
-    
     if not clean_text.isdigit():
-        await message.answer("❌ Iltimos, faqat raqamlardan iborat summa kiriting:")
+        await message.answer("❌ Raqam kiriting / Enter numbers only:")
         return
 
     price = float(clean_text)
-    if price < 100000:
-        await message.answer("⚠️ Eng kam nasiya summasi 100 000 so'm bo'lishi kerak.")
-        return
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
+    symbol = data.get('currency_symbol')
 
     await state.update_data(price=price)
-    
+
     await message.answer(
-        f"💵 Mahsulot narxi: <b>{price:,.0f} so'm</b>\n\n"
-        "Boshlang'ich to'lov qilasizmi?",
-        reply_markup=get_down_payment_keyboard(),
+        TEXTS[lang]['dp_choice'].format(price=price, symbol=symbol),
+        reply_markup=get_dp_keyboard(lang),
         parse_mode="HTML"
     )
     await state.set_state(NasiyaOrder.waiting_for_down_payment_choice)
@@ -289,14 +389,12 @@ async def process_price(message: Message, state: FSMContext):
 @router.callback_query(NasiyaOrder.waiting_for_down_payment_choice, F.data == "dp_no")
 async def process_dp_no(callback: CallbackQuery, state: FSMContext):
     await state.update_data(down_payment=0.0)
-    user_data = await state.get_data()
-    price = user_data.get("price")
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
 
     await callback.message.edit_text(
-        f"💵 Mahsulot narxi: <b>{price:,.0f} so'm</b>\n"
-        f"💳 Boshlang'ich to'lov: <b>0 so'm</b>\n\n"
-        "Nasiya muddatini tanlang:",
-        reply_markup=get_duration_keyboard(),
+        TEXTS[lang]['select_duration'],
+        reply_markup=get_duration_keyboard(lang),
         parse_mode="HTML"
     )
     await state.set_state(NasiyaOrder.waiting_for_duration)
@@ -304,147 +402,90 @@ async def process_dp_no(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(NasiyaOrder.waiting_for_down_payment_choice, F.data == "dp_yes")
 async def process_dp_yes(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
+    symbol = data.get('currency_symbol')
+
     await callback.message.delete()
     await callback.message.answer(
-        "💵 Qancha boshlang'ich to'lov qilmoqchisiz? Summani kiriting:\n"
-        "<i>(Masalan: 1000000)</i>",
-        reply_markup=get_back_reply_keyboard(),
+        TEXTS[lang]['enter_dp'].format(symbol=symbol),
+        reply_markup=get_back_keyboard(lang),
         parse_mode="HTML"
     )
     await state.set_state(NasiyaOrder.waiting_for_down_payment_amount)
     await callback.answer()
 
-@router.message(NasiyaOrder.waiting_for_down_payment_amount, F.text == "⬅️ Orqaga")
-async def back_from_dp_amount(message: Message, state: FSMContext):
-    user_data = await state.get_data()
-    price = user_data.get("price")
-    
-    await message.answer(
-        f"💵 Mahsulot narxi: <b>{price:,.0f} so'm</b>\n\n"
-        "Boshlang'ich to'lov qilasizmi?",
-        reply_markup=get_down_payment_keyboard(),
-        parse_mode="HTML"
-    )
-    await state.set_state(NasiyaOrder.waiting_for_down_payment_choice)
-
 @router.message(NasiyaOrder.waiting_for_down_payment_amount, F.text)
 async def process_dp_amount(message: Message, state: FSMContext):
     clean_text = message.text.replace(" ", "").replace(",", "")
-    
     if not clean_text.isdigit():
-        await message.answer("❌ Iltimos, faqat raqamlardan iborat summa kiriting:")
+        await message.answer("❌ Raqam kiriting:")
         return
 
     dp_amount = float(clean_text)
-    user_data = await state.get_data()
-    price = user_data.get("price")
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
+    price = data.get('price')
 
     if dp_amount >= price:
-        await message.answer("⚠️ Boshlang'ich to'lov mahsulot narxidan kamroq bo'lishi kerak!")
+        await message.answer("⚠️ Boshlang'ich to'lov narxdan kichik bo'lishi kerak!")
         return
 
     await state.update_data(down_payment=dp_amount)
 
     await message.answer(
-        f"💵 Mahsulot narxi: <b>{price:,.0f} so'm</b>\n"
-        f"💳 Boshlang'ich to'lov: <b>{dp_amount:,.0f} so'm</b>\n"
-        f"🔹 Qolgan summa: <b>{(price - dp_amount):,.0f} so'm</b>\n\n"
-        "Endi nasiya muddatini tanlang:",
-        reply_markup=get_duration_keyboard(),
+        TEXTS[lang]['select_duration'],
+        reply_markup=get_duration_keyboard(lang),
         parse_mode="HTML"
     )
     await state.set_state(NasiyaOrder.waiting_for_duration)
 
-@router.callback_query(NasiyaOrder.waiting_for_duration, F.data == "back_to_dp_choice")
-async def back_to_dp_choice_handler(callback: CallbackQuery, state: FSMContext):
-    user_data = await state.get_data()
-    price = user_data.get("price")
-
-    await callback.message.edit_text(
-        f"💵 Mahsulot narxi: <b>{price:,.0f} so'm</b>\n\n"
-        "Boshlang'ich to'lov qilasizmi?",
-        reply_markup=get_down_payment_keyboard(),
-        parse_mode="HTML"
-    )
-    await state.set_state(NasiyaOrder.waiting_for_down_payment_choice)
-    await callback.answer()
-
 @router.callback_query(NasiyaOrder.waiting_for_duration, F.data.startswith("duration_"))
 async def process_duration(callback: CallbackQuery, state: FSMContext):
     months = int(callback.data.split("_")[1])
-    user_data = await state.get_data()
-    price = user_data.get("price")
-    down_payment = user_data.get("down_payment", 0.0)
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
+    price = data.get('price')
+    dp = data.get('down_payment', 0.0)
+    curr_type = data.get('currency_type')
 
-    calc = calculate_nasiya(price, down_payment, months)
+    calc = calculate_nasiya(price, dp, months, curr_type)
     await state.update_data(calc_result=calc)
 
-    schedule_text = "\n".join(
-        [f"   • {item['month']}-oy ({item['date']}): <b>{item['amount']:,} so'm</b>" for item in calc["schedule"]]
-    )
+    symbol = calc['currency_symbol']
+    schedule_text = "\n".join([f"   • {i['month']}-oy ({i['date']}): <b>{i['amount']:,} {symbol}</b>" for i in calc['schedule']])
 
-    dp_text = f"🔹 Boshlang'ich to'lov: <b>{calc['down_payment']:,.0f} so'm</b>\n" if calc['down_payment'] > 0 else ""
-
-    summary_text = (
-        f"📋 <b>NASIYA HISOBI</b>\n\n"
-        f"🔹 Mahsulot narxi: {calc['original_price']:,.0f} so'm\n"
-        f"{dp_text}"
-        f"🔹 Nasiya muddati: {calc['months']} oy\n"
-        f"🔹 Oylik to'lov: <b>{calc['monthly_payment']:,.0f} so'm/oy</b>\n\n"
-        f"📅 <b>To'lovlar grafigi:</b>\n{schedule_text}\n\n"
-        f"Pasportni yuklashga o'tish uchun 'Davom etish' tugmasini bosing."
+    summary = (
+        f"📋 <b>NASIYA HISOBI ({symbol})</b>\n\n"
+        f"🔹 Narx: <b>{calc['original_price']:,} {symbol}</b>\n"
+        f"🔹 Boshlang'ich to'lov: <b>{calc['down_payment']:,} {symbol}</b>\n"
+        f"🔹 Muddat: <b>{calc['months']} oy</b>\n"
+        f"💳 Oylik to'lov: <b>{calc['monthly_payment']:,} {symbol}/oy</b>\n"
+        f"💱 <i>(Kurs: 1$ = 13,000 UZS)</i>\n\n"
+        f"📅 <b>To'lovlar grafigi:</b>\n{schedule_text}"
     )
 
     await callback.message.edit_text(
-        summary_text,
-        reply_markup=get_confirm_keyboard(),
+        summary,
+        reply_markup=get_confirm_keyboard(lang),
         parse_mode="HTML"
     )
     await state.set_state(NasiyaOrder.confirm_order)
     await callback.answer()
 
-@router.callback_query(NasiyaOrder.confirm_order, F.data == "back_to_duration")
-async def back_to_duration_handler(callback: CallbackQuery, state: FSMContext):
-    user_data = await state.get_data()
-    price = user_data.get("price")
-    dp = user_data.get("down_payment", 0.0)
-    
-    await callback.message.edit_text(
-        f"💵 Mahsulot narxi: <b>{price:,.0f} so'm</b>\n"
-        f"💳 Boshlang'ich to'lov: <b>{dp:,.0f} so'm</b>\n\n"
-        "Nasiya muddatini qayta tanlang:",
-        reply_markup=get_duration_keyboard(),
-        parse_mode="HTML"
-    )
-    await state.set_state(NasiyaOrder.waiting_for_duration)
-    await callback.answer()
-
 @router.callback_query(NasiyaOrder.confirm_order, F.data == "confirm_yes")
-async def process_confirmation(callback: CallbackQuery, state: FSMContext):
+async def process_confirm(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
+
     await callback.message.delete()
     await callback.message.answer(
-        "📄 <b>Pasport yoki ID karta</b>\n\n"
-        "Iltimos, pasportingiz (yoki ID kartangiz) rasmini yoki PDF faylini yuboring:",
-        reply_markup=get_back_reply_keyboard(),
+        TEXTS[lang]['passport_req'],
+        reply_markup=get_back_keyboard(lang),
         parse_mode="HTML"
     )
     await state.set_state(NasiyaOrder.waiting_for_passport)
     await callback.answer()
-
-@router.message(NasiyaOrder.waiting_for_passport, F.text == "⬅️ Orqaga")
-async def back_from_passport(message: Message, state: FSMContext):
-    user_data = await state.get_data()
-    price = user_data.get("price")
-    dp = user_data.get("down_payment", 0.0)
-    
-    await message.answer(
-        f"💵 Mahsulot narxi: <b>{price:,.0f} so'm</b>\n"
-        f"💳 Boshlang'ich to'lov: <b>{dp:,.0f} so'm</b>\n\n"
-        "Nasiya muddatini tanlang:",
-        reply_markup=get_duration_keyboard(),
-        parse_mode="HTML"
-    )
-    await state.set_state(NasiyaOrder.waiting_for_duration)
 
 @router.message(NasiyaOrder.waiting_for_passport, F.photo | F.document)
 async def process_passport(message: Message, state: FSMContext):
@@ -453,95 +494,72 @@ async def process_passport(message: Message, state: FSMContext):
 
     await state.update_data(passport_file=file_id, passport_type=file_type)
 
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
+
     await message.answer(
-        "📍 <b>Yashash manzilingizni kiriting:</b>\n\n"
-        "<i>Iltimos, shahar/tuman, mahalla va uy raqamingizni kiriting.</i>\n"
-        "<b>Namuna:</b> <code>Qo'qon shahar, Charxiy MFY, Navoiy ko'chasi 15-uy</code>",
-        reply_markup=get_back_reply_keyboard(),
+        TEXTS[lang]['address_req'],
+        reply_markup=get_back_keyboard(lang),
         parse_mode="HTML"
     )
     await state.set_state(NasiyaOrder.waiting_for_address)
 
-@router.message(NasiyaOrder.waiting_for_address, F.text == "⬅️ Orqaga")
-async def back_from_address(message: Message, state: FSMContext):
-    await message.answer(
-        "📄 <b>Pasport yoki ID karta</b>\n\n"
-        "Iltimos, pasportingiz (yoki ID kartangiz) rasmini qayta yuboring:",
-        reply_markup=get_back_reply_keyboard(),
-        parse_mode="HTML"
-    )
-    await state.set_state(NasiyaOrder.waiting_for_passport)
-
 @router.message(NasiyaOrder.waiting_for_address, F.text)
 async def process_address(message: Message, state: FSMContext):
-    address = message.text.strip()
-    await state.update_data(user_address=address)
+    await state.update_data(user_address=message.text.strip())
+
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
 
     await message.answer(
-        "📞 <b>Telefon raqamingizni kiriting:</b>\n\n"
-        "<i>Siz bilan bog'lanishimiz uchun telefon raqamingizni yozib yuboring.</i>\n"
-        "<b>Namuna:</b> <code>+998901234567</code>",
-        reply_markup=get_back_reply_keyboard(),
+        TEXTS[lang]['phone_req'],
+        reply_markup=get_back_keyboard(lang),
         parse_mode="HTML"
     )
     await state.set_state(NasiyaOrder.waiting_for_phone)
 
-@router.message(NasiyaOrder.waiting_for_phone, F.text == "⬅️ Orqaga")
-async def back_from_phone(message: Message, state: FSMContext):
-    await message.answer(
-        "📍 <b>Yashash manzilingizni qayta kiriting:</b>\n\n"
-        "<b>Namuna:</b> <code>Qo'qon shahar, Charxiy MFY, Navoiy ko'chasi 15-uy</code>",
-        reply_markup=get_back_reply_keyboard(),
-        parse_mode="HTML"
-    )
-    await state.set_state(NasiyaOrder.waiting_for_address)
-
 @router.message(NasiyaOrder.waiting_for_phone, F.text)
 async def process_phone(message: Message, state: FSMContext):
-    phone_number = message.text.strip()
-    await state.update_data(user_phone=phone_number)
+    await state.update_data(user_phone=message.text.strip())
 
-    user_data = await state.get_data()
-    calc = user_data.get("calc_result")
-    address = user_data.get("user_address")
-
-    dp_text = f"💵 Boshlang'ich to'lov: <b>{calc['down_payment']:,} so'm</b>\n" if calc['down_payment'] > 0 else ""
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
+    calc = data.get('calc_result')
+    symbol = calc['currency_symbol']
 
     final_text = (
-        "📑 <b>ARIZA TAYYOR BO'LDI!</b>\n\n"
-        f"💰 Mahsulot narxi: <b>{calc['original_price']:,} so'm</b>\n"
-        f"{dp_text}"
+        "📑 <b>ARIZA TAYYOR BO'LDI / APPLICATION READY</b>\n\n"
+        f"💰 Narxi: <b>{calc['original_price']:,} {symbol}</b>\n"
+        f"💵 Boshlang'ich: <b>{calc['down_payment']:,} {symbol}</b>\n"
         f"📅 Muddat: <b>{calc['months']} oy</b>\n"
-        f"💳 Oylik to'lov: <b>{calc['monthly_payment']:,} so'm/oy</b>\n"
-        f"📍 Manzil: <b>{address}</b>\n"
-        f"📞 Telefon raqam: <b>{phone_number}</b>\n"
-        f"📎 Hujjatlar: <b>Pasport yuklandi ✅</b>\n\n"
-        "Barcha ma'lumotlar to'g'ri bo'lsa, 'Arizani Adminga Yuborish' tugmasini bosing:"
+        f"💳 Oylik: <b>{calc['monthly_payment']:,} {symbol}/oy</b>\n"
+        f"📍 Manzil: <b>{data.get('user_address')}</b>\n"
+        f"📞 Tel: <b>{message.text}</b>\n"
     )
 
     await message.answer(
         final_text,
-        reply_markup=get_final_submit_keyboard(),
+        reply_markup=get_final_submit_keyboard(lang),
         parse_mode="HTML"
     )
     await state.set_state(NasiyaOrder.final_confirm)
 
 @router.callback_query(F.data == "confirm_no")
 async def cancel_order(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
     await state.clear()
     await callback.message.delete()
-    await callback.message.answer("❌ Ariza bekor qilindi.", reply_markup=get_main_menu())
+    await callback.message.answer(TEXTS[lang]['cancelled'], reply_markup=get_main_menu(lang))
     await callback.answer()
 
 @router.callback_query(NasiyaOrder.final_confirm, F.data == "send_to_admin")
 async def send_order_to_admin(callback: CallbackQuery, state: FSMContext):
-    user_data = await state.get_data()
-    calc = user_data.get("calc_result")
-    user_address = user_data.get("user_address", "Ko'rsatilmadi")
-    user_phone = user_data.get("user_phone", "Ko'rsatilmadi")
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
+    calc = data.get('calc_result')
     
     orders_db.append(calc)
-
     username = f"@{callback.from_user.username}" if callback.from_user.username else "Yo'q"
 
     admin_text = (
@@ -549,127 +567,61 @@ async def send_order_to_admin(callback: CallbackQuery, state: FSMContext):
         f"👤 <b>Mijoz:</b> {callback.from_user.full_name}\n"
         f"🆔 <b>ID:</b> <code>{callback.from_user.id}</code>\n"
         f"📱 <b>Username:</b> {username}\n"
-        f"📞 <b>Telefon raqami:</b> <code>{user_phone}</code>\n"
-        f"📍 <b>Manzil:</b> {user_address}\n\n"
-        f"💰 <b>Mahsulot narxi:</b> {calc['original_price']:,} so'm\n"
-        f"💵 <b>Boshlang'ich to'lov:</b> {calc['down_payment']:,} so'm\n"
-        f"🔹 <b>Nasiya qilingan summa:</b> {calc['remaining_amount']:,} so'm\n"
+        f"📞 <b>Telefon:</b> <code>{data.get('user_phone')}</code>\n"
+        f"📍 <b>Manzil:</b> {data.get('user_address')}\n\n"
+        f"💰 <b>Narxi:</b> ${calc['price_usd']:,} / {calc['price_uzs']:,} so'm\n"
+        f"💵 <b>Boshlang'ich:</b> ${calc['dp_usd']:,} / {calc['dp_uzs']:,} so'm\n"
         f"📅 <b>Muddat:</b> {calc['months']} oy ({calc['margin_percent']}%)\n"
-        f"💳 <b>Oylik to'lov:</b> {calc['monthly_payment']:,} so'm/oy"
+        f"💳 <b>Oylik to'lov:</b> ${calc['monthly_usd']:,} / {calc['monthly_uzs']:,} so'm\n"
+        f"💱 <b>Kurs:</b> 1 USD = 13,000 UZS"
     )
 
-    try:
-        for admin_id in ADMIN_ID:
-            try:
-                await callback.bot.send_message(chat_id=admin_id, text=admin_text, parse_mode="HTML")
+    # Ikkala adminga ham yuborish
+    for admin_id in ADMIN_ID:
+        try:
+            await callback.bot.send_message(chat_id=admin_id, text=admin_text, parse_mode="HTML")
+            if data.get("passport_type") == "photo":
+                await callback.bot.send_photo(chat_id=admin_id, photo=data.get("passport_file"))
+            else:
+                await callback.bot.send_document(chat_id=admin_id, document=data.get("passport_file"))
+        except Exception as e:
+            logging.error(f"Admin Error: {e}")
 
-                await callback.bot.send_message(chat_id=admin_id, text="📄 <b>Mijoz pasporti:</b>", parse_mode="HTML")
-                if user_data.get("passport_type") == "photo":
-                    await callback.bot.send_photo(chat_id=admin_id, photo=user_data.get("passport_file"))
-                else:
-                    await callback.bot.send_document(chat_id=admin_id, document=user_data.get("passport_file"))
-
-            except Exception as single_admin_error:
-                logging.error(f"Admin {admin_id} ga xabar yuborishda xatolik: {single_admin_error}")
-
-        await callback.message.edit_text(
-            "🎉 <b>Arizangiz Adminga muvaffaqiyatli yuborildi!</b>\n\n"
-            "Tez orada siz bilan bog'lanamiz.",
-            parse_mode="HTML"
-        )
-    except Exception as e:
-        logging.error(f"Adminga yuborishda xatolik: {e}")
-        await callback.message.edit_text("⚠️ Arizani yuborishda xatolik yuz berdi.")
-
+    await callback.message.edit_text(TEXTS[lang]['success_sent'], parse_mode="HTML")
     await state.clear()
-    await callback.message.answer("Asosiy menyu:", reply_markup=get_main_menu())
+    await callback.message.answer("Menu", reply_markup=get_main_menu(lang))
     await callback.answer()
 
 # ----------------------------------------------------
-# 5. ADMIN PANEL HANDLERLARI
+# 5. ADMIN PANEL HANDLERS
 # ----------------------------------------------------
 @router.message(Command("admin"))
 async def cmd_admin(message: Message):
     if message.from_user.id not in ADMIN_ID:
         return
-    await message.answer(
-        "⚙️ <b>Nasiya Bot Admin Paneliga xush kelibsiz!</b>\n\n"
-        "Kerakli boshqaruv bo'limini tanlang 👇",
-        reply_markup=get_admin_menu(),
-        parse_mode="HTML"
-    )
+    await message.answer("⚙️ <b>Admin Panel</b>", reply_markup=get_admin_menu(), parse_mode="HTML")
 
 @router.message(F.text == "📊 Tizim statistikasi")
 async def admin_stats(message: Message):
     if message.from_user.id not in ADMIN_ID:
         return
-    
-    total_users = len(users_db) if users_db else 1
-    total_orders = len(orders_db)
-
-    stats_text = (
-        "📊 <b>BOT TIZIMI STATISTIKASI</b>\n\n"
-        f"👥 Jami foydalanuvchilar: <b>{total_users} ta</b>\n"
-        f"📥 Kelib tushgan arizalar: <b>{total_orders} ta</b>\n"
-    )
-    await message.answer(stats_text, parse_mode="HTML")
-
-@router.message(F.text == "📋 Arizalar ro'yxati")
-async def admin_orders(message: Message):
-    if message.from_user.id not in ADMIN_ID:
-        return
-    await message.answer(f"📋 Jami arizalar soni: <b>{len(orders_db)} ta</b>", parse_mode="HTML")
-
-@router.message(F.text == "📨 Xabarnoma yuborish")
-async def admin_broadcast(message: Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_ID:
-        return
-    await message.answer("📝 Barcha foydalanuvchilarga yubormoqchi bo'lgan xabaringizni kiriting:")
-    await state.set_state(AdminBroadcast.waiting_for_message)
-
-@router.message(AdminBroadcast.waiting_for_message)
-async def process_broadcast(message: Message, state: FSMContext):
-    count = 0
-    for user_id in users_db:
-        try:
-            await message.copy_to(chat_id=user_id)
-            count += 1
-        except Exception:
-            pass
-    await message.answer(f"✅ Xabar <b>{count}</b> ta foydalanuvchiga yuborildi!", parse_mode="HTML")
-    await state.clear()
-
-@router.message(F.text == "➕ Majburiy kanallar")
-async def admin_channels(message: Message):
-    if message.from_user.id not in ADMIN_ID:
-        return
-    await message.answer("📢 Hozircha majburiy obuna kanallari sozlanmagan.")
-
-@router.message(F.text == "📈 Foiz stavkalari")
-async def admin_rates(message: Message):
-    if message.from_user.id not in ADMIN_ID:
-        return
-    rates_text = (
-        "📈 <b>AMALDAGI FOIZ STAVKALARI:</b>\n\n"
-        "• 6 oy: <b>30%</b>\n"
-        "• 12 oy: <b>45%</b>"
-    )
-    await message.answer(rates_text, parse_mode="HTML")
+    await message.answer(f"👥 Foydalanuvchilar: <b>{len(users_db)}</b>\n📥 Arizalar: <b>{len(orders_db)}</b>", parse_mode="HTML")
 
 @router.message(F.text == "⬅️ Bosh menyu")
-async def back_to_user_menu(message: Message):
-    await message.answer("Asosiy menyuga qaytdingiz:", reply_markup=get_main_menu())
+async def back_to_user_menu(message: Message, state: FSMContext):
+    data = await state.get_data()
+    lang = data.get('lang', 'uz')
+    await message.answer("Asosiy menyu", reply_markup=get_main_menu(lang))
 
 # ----------------------------------------------------
-# 6. RUN BOT
+# 6. RUN
 # ----------------------------------------------------
 async def main():
     bot = Bot(token="8944862071:AAFcxHz0fIAMO3r6GLSXql7xrn_jzFk_Puc")
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
-    
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    keep_alive()  # Render uchun portni fonda ochadi
+    keep_alive()
     asyncio.run(main())
