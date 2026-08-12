@@ -21,7 +21,7 @@ from aiogram.types import (
 )
 
 # ----------------------------------------------------
-# 0. RENDER FLASK SERVER
+# 0. RENDER FLASK SERVER (24/7 ishlatish uchun)
 # ----------------------------------------------------
 app = Flask('')
 
@@ -43,7 +43,7 @@ def keep_alive():
 # ----------------------------------------------------
 BOT_TOKEN = "8944862071:AAFcxHz0fIAMO3r6GLSXql7xrn_jzFk_Puc"
 ADMIN_ID = [7214612272, 607901580]  # Ikkita admin ID
-USD_RATE = 13000                    # Doimiy kurs: 1 USD = 13,000 UZS
+USD_RATE = 13000                    # Doimiy fixed kurs: 1 USD = 13,000 UZS
 
 logging.basicConfig(level=logging.INFO)
 router = Router()
@@ -52,7 +52,7 @@ users_db = set()
 orders_db = []
 
 # ----------------------------------------------------
-# KOP TILLILIK (MULTILANGUAGE TEXTS)
+# KOP TILLILIK MATNLARI (MULTILANGUAGE TEXTS)
 # ----------------------------------------------------
 TEXTS = {
     'uz': {
@@ -60,7 +60,7 @@ TEXTS = {
         'btn_nasiya': "📝 Nasiya rasmiylashtirish",
         'btn_about': "ℹ️ Bot haqida",
         'btn_lang': "🌐 Tilni o'zgartirish",
-        'select_currency': "💱 <b>Valyutani tanlang:</b>\n<i>(Belgilangan kurs: 1 USD = 13,000 UZS)</i>",
+        'select_currency': "💱 <b>Valyutani tanlang:</b>\n<i>(Belgilangan fixed kurs: 1 USD = 13,000 UZS)</i>",
         'enter_price': "💰 Mahsulot narxini <b>{symbol}</b>da kiriting:\n<i>(Masalan: {example})</i>",
         'enter_dp': "💵 Boshlang'ich to'lov summasini <b>{symbol}</b>da kiriting:",
         'dp_choice': "💵 Mahsulot narxi: <b>{price:,.0f} {symbol}</b>\n\nBoshlang'ich to'lov qilasizmi?",
@@ -74,9 +74,23 @@ TEXTS = {
         'btn_dp_yes': "💵 Boshlang'ich to'lov bilan",
         'btn_continue': "✅ Davom etish",
         'btn_submit': "🚀 Arizani Yuborish",
-        'about_text': "✨ <b>NASIYA BOT</b> ✨\n\n💱 Kurs: 1 USD = 13,000 UZS\n⏱️ Muddatlar: 6 oy (30%) va 12 oy (45%)",
+        'about_text': (
+            "✨ <b>NASIYA BOZOR BOTI HAQIDA TO'LIQ MA'LUMOT</b> ✨\n\n"
+            "Siz istalgan do'kondan o'zingizga yoqqan buyumni (telefon, maishiy texnika, kompyuter va h.k.) tanlaysiz, "
+            "biz uni siz uchun naqdga sotib olamiz va sizga halol nasiya savdo sharti bilan bo'lib-bo'lib to'lashga beramiz!\n\n"
+            "💱 <b>Valyuta va Kurs:</b>\n"
+            "• Hisob-kitoblar So'm yoki Dollarda olib boriladi.\n"
+            "• Belgilangan o'zgarmas kurs: <b>1 USD = 13,000 UZS</b>\n\n"
+            "⏱️ <b>Nasiya muddatlari va ustama foizlari:</b>\n"
+            "• <b>6 oy</b> — 30% ustama bilan\n"
+            "• <b>12 oy</b> — 45% ustama bilan\n\n"
+            "📌 <b>Boshlang'ich to'lov:</b>\n"
+            "• Boshlang'ich to'lovsiz yoki ixtiyoriy summa to'lagan holda rasmiylashtirishingiz mumkin.\n\n"
+            "📄 <b>Talab qilinadigan hujjatlar:</b>\n"
+            "• Faqatgina Pasport yoki ID karta va yashash manzilingiz kifoya."
+        ),
         'cancelled': "❌ Bekor qilindi.",
-        'success_sent': "🎉 <b>Arizangiz muvaffaqiyatli yuborildi!</b>\nTez orada adminlarimiz bog'lanishadi."
+        'success_sent': "🎉 <b>Arizangiz muvaffaqiyatli yuborildi!</b>\nTez orada adminlarimiz siz bilan bog'lanishadi."
     },
     'en': {
         'welcome': "👋 <b>Welcome!</b>\n\nPlease select a section to use our installment service 👇",
@@ -97,7 +111,16 @@ TEXTS = {
         'btn_dp_yes': "💵 With down payment",
         'btn_continue': "✅ Continue",
         'btn_submit': "🚀 Submit Application",
-        'about_text': "✨ <b>INSTALLMENT BOT</b> ✨\n\n💱 Rate: 1 USD = 13,000 UZS\n⏱️ Terms: 6 months (30%) & 12 months (45%)",
+        'about_text': (
+            "✨ <b>ABOUT NASIYA BOZOR BOT</b> ✨\n\n"
+            "Choose any item you like from any store, we buy it for you and provide it with easy monthly installments!\n\n"
+            "💱 <b>Currency & Fixed Rate:</b>\n"
+            "• Fixed rate: <b>1 USD = 13,000 UZS</b>\n\n"
+            "⏱️ <b>Terms & Percentages:</b>\n"
+            "• <b>6 months</b> — 30%\n"
+            "• <b>12 months</b> — 45%\n\n"
+            "📄 <b>Required Documents:</b> Passport or ID card."
+        ),
         'cancelled': "❌ Cancelled.",
         'success_sent': "🎉 <b>Application submitted successfully!</b>\nOur managers will contact you soon."
     },
@@ -120,7 +143,16 @@ TEXTS = {
         'btn_dp_yes': "💵 С первоначальным взносом",
         'btn_continue': "✅ Продолжить",
         'btn_submit': "🚀 Отправить заявку",
-        'about_text': "✨ <b>РАССРОЧКА БОТ</b> ✨\n\n💱 Курс: 1 USD = 13,000 UZS\n⏱️ Сроки: 6 месяцев (30%) и 12 месяцев (45%)",
+        'about_text': (
+            "✨ <b>ПОЛНАЯ ИНФОРМАЦИЯ О БОТЕ NASIYA BOZOR</b> ✨\n\n"
+            "Вы выбираете любой понравившийся товар в любом магазине, мы покупаем его для вас и предоставляем в рассрочку!\n\n"
+            "💱 <b>Валюта и Курс:</b>\n"
+            "• Фиксированный курс: <b>1 USD = 13,000 UZS</b>\n\n"
+            "⏱️ <b>Сроки и наценка:</b>\n"
+            "• <b>6 месяцев</b> — 30%\n"
+            "• <b>12 месяцев</b> — 45%\n\n"
+            "📄 <b>Необходимые документы:</b> Паспорт или ID карта."
+        ),
         'cancelled': "❌ Отменено.",
         'success_sent': "🎉 <b>Заявка успешно отправлена!</b>\nСкоро с вами свяжутся администраторы."
     }
@@ -278,7 +310,7 @@ def get_admin_menu():
         keyboard=[
             [KeyboardButton(text="📊 Tizim statistikasi"), KeyboardButton(text="📋 Arizalar ro'yxati")],
             [KeyboardButton(text="📨 Xabarnoma yuborish"), KeyboardButton(text="📈 Foiz va Kurs")],
-            [KeyboardButton(text="⬅️ Bosh menyu")]
+            [KeyboardButton(text="⬅️ Bosh menyuga qaytish")]
         ],
         resize_keyboard=True
     )
@@ -363,13 +395,13 @@ async def process_currency(callback: CallbackQuery, state: FSMContext):
 async def back_from_price(message: Message, state: FSMContext):
     data = await state.get_data()
     lang = data.get('lang', 'uz')
-    await message.answer("Menu", reply_markup=get_main_menu(lang))
+    await message.answer("Bosh menyu", reply_markup=get_main_menu(lang))
 
 @router.message(NasiyaOrder.waiting_for_price, F.text)
 async def process_price(message: Message, state: FSMContext):
     clean_text = message.text.replace(" ", "").replace(",", "")
     if not clean_text.isdigit():
-        await message.answer("❌ Raqam kiriting / Enter numbers only:")
+        await message.answer("❌ Iltimos, faqat raqamlardan iborat summa kiriting:")
         return
 
     price = float(clean_text)
@@ -419,7 +451,7 @@ async def process_dp_yes(callback: CallbackQuery, state: FSMContext):
 async def process_dp_amount(message: Message, state: FSMContext):
     clean_text = message.text.replace(" ", "").replace(",", "")
     if not clean_text.isdigit():
-        await message.answer("❌ Raqam kiriting:")
+        await message.answer("❌ Iltimos, faqat raqam kiriting:")
         return
 
     dp_amount = float(clean_text)
@@ -528,7 +560,7 @@ async def process_phone(message: Message, state: FSMContext):
     symbol = calc['currency_symbol']
 
     final_text = (
-        "📑 <b>ARIZA TAYYOR BO'LDI / APPLICATION READY</b>\n\n"
+        "📑 <b>ARIZA TAYYOR BO'LDI</b>\n\n"
         f"💰 Narxi: <b>{calc['original_price']:,} {symbol}</b>\n"
         f"💵 Boshlang'ich: <b>{calc['down_payment']:,} {symbol}</b>\n"
         f"📅 Muddat: <b>{calc['months']} oy</b>\n"
@@ -576,7 +608,7 @@ async def send_order_to_admin(callback: CallbackQuery, state: FSMContext):
         f"💱 <b>Kurs:</b> 1 USD = 13,000 UZS"
     )
 
-    # Ikkala adminga ham yuborish
+    # Ikkala adminga ham bir vaqtda yuborish
     for admin_id in ADMIN_ID:
         try:
             await callback.bot.send_message(chat_id=admin_id, text=admin_text, parse_mode="HTML")
@@ -589,29 +621,72 @@ async def send_order_to_admin(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text(TEXTS[lang]['success_sent'], parse_mode="HTML")
     await state.clear()
-    await callback.message.answer("Menu", reply_markup=get_main_menu(lang))
+    await callback.message.answer("Bosh menyu", reply_markup=get_main_menu(lang))
     await callback.answer()
 
 # ----------------------------------------------------
 # 5. ADMIN PANEL HANDLERS
 # ----------------------------------------------------
 @router.message(Command("admin"))
-async def cmd_admin(message: Message):
+async def cmd_admin(message: Message, state: FSMContext):
     if message.from_user.id not in ADMIN_ID:
         return
-    await message.answer("⚙️ <b>Admin Panel</b>", reply_markup=get_admin_menu(), parse_mode="HTML")
+    await state.clear()
+    await message.answer("⚙️ <b>Nasiya Bot Admin Paneliga xush kelibsiz!</b>", reply_markup=get_admin_menu(), parse_mode="HTML")
 
 @router.message(F.text == "📊 Tizim statistikasi")
 async def admin_stats(message: Message):
     if message.from_user.id not in ADMIN_ID:
         return
-    await message.answer(f"👥 Foydalanuvchilar: <b>{len(users_db)}</b>\n📥 Arizalar: <b>{len(orders_db)}</b>", parse_mode="HTML")
+    await message.answer(
+        f"📊 <b>BOT TIZIMI STATISTIKASI</b>\n\n"
+        f"👥 Foydalanuvchilar: <b>{len(users_db)} ta</b>\n"
+        f"📥 Arizalar soni: <b>{len(orders_db)} ta</b>",
+        parse_mode="HTML"
+    )
 
-@router.message(F.text == "⬅️ Bosh menyu")
+@router.message(F.text == "📋 Arizalar ro'yxati")
+async def admin_orders(message: Message):
+    if message.from_user.id not in ADMIN_ID:
+        return
+    await message.answer(f"📋 Jami kelib tushgan arizalar: <b>{len(orders_db)} ta</b>", parse_mode="HTML")
+
+@router.message(F.text == "📈 Foiz va Kurs")
+async def admin_rates(message: Message):
+    if message.from_user.id not in ADMIN_ID:
+        return
+    await message.answer(
+        "📈 <b>TIZIM SOZLAMALARI:</b>\n\n"
+        "• 6 oy: <b>30%</b>\n"
+        "• 12 oy: <b>45%</b>\n"
+        "• Belgilangan Dollar kursi: <b>1 USD = 13,000 UZS</b>",
+        parse_mode="HTML"
+    )
+
+@router.message(F.text == "📨 Xabarnoma yuborish")
+async def admin_broadcast(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_ID:
+        return
+    await message.answer("📝 Yubormoqchi bo'lgan xabaringizni kiriting:")
+    await state.set_state(AdminBroadcast.waiting_for_message)
+
+@router.message(AdminBroadcast.waiting_for_message)
+async def process_broadcast(message: Message, state: FSMContext):
+    count = 0
+    for user_id in users_db:
+        try:
+            await message.copy_to(chat_id=user_id)
+            count += 1
+        except Exception:
+            pass
+    await message.answer(f"✅ Xabar <b>{count}</b> ta foydalanuvchiga yuborildi!", parse_mode="HTML")
+    await state.clear()
+
+@router.message(F.text == "⬅️ Bosh menyuga qaytish")
 async def back_to_user_menu(message: Message, state: FSMContext):
     data = await state.get_data()
     lang = data.get('lang', 'uz')
-    await message.answer("Asosiy menyu", reply_markup=get_main_menu(lang))
+    await message.answer("Asosiy menyuga qaytdingiz:", reply_markup=get_main_menu(lang))
 
 # ----------------------------------------------------
 # 6. RUN
