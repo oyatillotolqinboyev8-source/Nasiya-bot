@@ -41,7 +41,7 @@ def keep_alive():
 # ----------------------------------------------------
 # CONFIGURATION
 # ----------------------------------------------------
-BOT_TOKEN = "8944862071:AAFcxHz0fIAMO3r6GLSXql7xrn_jzFk_Puc"
+BOT_TOKEN = "8944862071:AAH5hwsxab2yTV4LwMRoAvU_8JtkZKWksvs"
 ADMIN_ID = [7214612272, 607901580]  # Admin IDlar
 
 # Maxfiy (Foydalanuvchidan yashirilgan) parametrlar:
