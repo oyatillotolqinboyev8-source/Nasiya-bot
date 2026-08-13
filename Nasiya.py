@@ -676,7 +676,7 @@ async def back_to_user_menu(message: Message, state: FSMContext):
 # 6. RUN BOT
 # ----------------------------------------------------
 async def main():
-    bot = Bot(token="8944862071:AAFcxHz0fIAMO3r6GLSXql7xrn_jzFk_Puc")
+    bot = Bot(token="8944862071:AAH5hwsxab2yTV4LwMRoAvU_8JtkZKWksvs")
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
     await dp.start_polling(bot)
