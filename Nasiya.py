@@ -44,7 +44,8 @@ def keep_alive():
 BOT_TOKEN = "8944862071:AAH5hwsxab2yTV4LwMRoAvU_8JtkZKWksvs"
 ADMIN_ID = [7214612272, 607901580]
 
-USD_RATE = 13000      # 1 USD = 13,000 UZS
+BUY_USD_RATE = 12000   # So'mdan dollarga o'tkazish kursi (Xarid)
+SELL_USD_RATE = 13000  # Dollardan so'mga qaytarish kursi (Sotuv)
 RATES = {6: 0.30, 12: 0.45} # 6 oy: 30%, 12 oy: 45%
 
 logging.basicConfig(level=logging.INFO)
@@ -156,26 +157,34 @@ class AdminBroadcast(StatesGroup):
     waiting_for_message = State()
 
 # ----------------------------------------------------
-# 2. HISOB-KITOB LOGIKASI (YANGI MATIQ)
+# 2. HISOB-KITOB LOGIKASI (SO'M VA DOLLAR MANTIQLARI QO'SHILDI)
 # ----------------------------------------------------
 def calculate_nasiya(input_price: float, input_dp: float, months: int, currency_type: str):
-    # 1. Avval kiritilgan narx va boshlang'ich to'lovni so'mga o'giramiz
-    if currency_type == "usd":
-        price_uzs = input_price * USD_RATE
-        dp_uzs = input_dp * USD_RATE
+    # 1-QADAM: Dollarga o'tkazish
+    if currency_type == "uzs":
+        # So'mda kiritilsa -> 12,000 xarid kursi bilan dollarga o'tkazamiz
+        price_usd = input_price / BUY_USD_RATE
+        dp_usd = input_dp / BUY_USD_RATE
     else:
-        price_uzs = input_price
-        dp_uzs = input_dp
+        # Dollarda kiritilgan bo'lsa -> o'zi dollar
+        price_usd = input_price
+        dp_usd = input_dp
 
-    # 2. Qoldiq summani topamiz
-    remaining_uzs = price_uzs - dp_uzs
+    remaining_usd = price_usd - dp_usd
 
-    # 3. So'mdagi qoldiqni oyga (6 yoki 12 ga) bo'lamiz
-    base_monthly_uzs = remaining_uzs / months
+    # 2-QADAM: Oyga bo'lib, 1 oylik dollar summasini topamiz
+    base_monthly_usd = remaining_usd / months
 
-    # 4. Bo'lingan bir oylik summani ustama foiziga ko'paytiramiz (masalan 12 oy uchun 1.45 ga)
+    # 3-QADAM: Ustama foizini qo'shamiz (6 oy: 30%, 12 oy: 45%)
     margin = RATES[months]
-    monthly_uzs = base_monthly_uzs * (1 + margin)
+    monthly_usd = base_monthly_usd * (1 + margin)
+
+    # 4-QADAM: 1 oylik to'lovni 13,000 sotuv kursi bilan qayta so'mga o'tkazamiz
+    monthly_uzs = monthly_usd * SELL_USD_RATE
+
+    # Ekranga chiqarish uchun umumiy so'mdagi qiymatlar (13,000 sotuv kursi bilan)
+    price_uzs = price_usd * SELL_USD_RATE
+    dp_uzs = dp_usd * SELL_USD_RATE
 
     today = datetime.now()
     schedule = []
@@ -635,7 +644,8 @@ async def admin_rates(message: Message):
         return
     await message.answer(
         "⚙️ <b>MAXFIY TIZIM SOZLAMALARI:</b>\n\n"
-        f"💵 <b>Hozirgi dollar kursi:</b> 1 USD = {USD_RATE:,} UZS\n"
+        f"💵 <b>Xarid kursi (So'm -> USD):</b> 1 USD = {BUY_USD_RATE:,} UZS\n"
+        f"💵 <b>Sotuv kursi (USD -> So'm):</b> 1 USD = {SELL_USD_RATE:,} UZS\n"
         f"📈 <b>6 oylik ustama foizi:</b> {int(RATES[6]*100)}%\n"
         f"📈 <b>12 oylik ustama foizi:</b> {int(RATES[12]*100)}%",
         parse_mode="HTML"
@@ -670,7 +680,7 @@ async def back_to_user_menu(message: Message, state: FSMContext):
 # 6. RUN BOT
 # ----------------------------------------------------
 async def main():
-    bot = Bot(token="8944862071:AAH5hwsxab2yTV4LwMRoAvU_8JtkZKWksvs")
+    bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
     await dp.start_polling(bot)
